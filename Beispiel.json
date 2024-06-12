@@ -1,0 +1,36 @@
+{
+    "id": 1,
+    "name": "Sieglinde",
+    "kind": "Cannabis",
+    "strain": [
+        {
+            "strainName": "Easy Bud",
+            "strainType": "Auto",
+            "THC": 12,
+            "floweringTime": "5-7w",
+            "harvestMonth": "9-10w after sprouting",
+            "genetics": "White Indica x Ruderalis"
+        }
+    ],
+    "germaniationDate": "2024-04-19",
+    "sproutingDate": "2024-04-24",
+    "format": "Y-m-d h:m:s",
+    "GrowUnit": 1,
+    "sensors": [
+        {
+            "kind": "humidity",
+            "source": {
+                "type": "direct",
+                "pin": 13
+            }
+        },
+        {
+            "kind": "temperature",
+            "source": {
+                "type": "mqtt",
+                "server": "192.168.0.29:1883",
+                "topic": "sensors/sensor1/humidity"
+            }
+        }
+    ]
+}
