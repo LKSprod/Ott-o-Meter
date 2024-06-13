@@ -45,6 +45,7 @@ func main() {
 		w.Write(jsonBytes)
 	})
 
+	//API Add Grow Unit
 	router.Path("/api/growunits").Methods("POST").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		decoder := json.NewDecoder(r.Body)
 		var gu database.GrowUnit
@@ -72,6 +73,7 @@ func main() {
 		w.Write(jsonBytes)
 	})
 
+	//API get Grow Unit
 	router.Path("/api/growunits/{id:[0-9]+}").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
 		if err != nil {

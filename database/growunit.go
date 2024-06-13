@@ -20,6 +20,7 @@ var growUnitBucketName = []byte("growunits")
 
 type GrowUnit struct {
 	Id                        uint64
+	Name                      string
 	Width                     uint
 	Height                    uint
 	Depth                     uint
