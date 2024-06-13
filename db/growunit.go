@@ -128,3 +128,49 @@ func (db *DB) ListGrowUnits() ([]*GrowUnit, error) {
 	return units, err
 
 }
+
+// ToDo GetGrowUnit ???
+func (id int) GetGrowUnit() (gu *GrowUnit, err error) {
+	if id > len(growUnitBucket) {
+		return nil, fmt.Errorf("Grow Unit not in list: %e", err)
+	}
+	return &growUnitBucket[id], err
+}
+
+// ToDo UpdateGrowUnit
+func (db *DB) UpdateGrowUnit(gu *GrowUnit, id uint64) (uint64, error) {
+	err := gu.verify()
+	if err != nil {
+		return 0, fmt.Errorf("failed to verify GrowUnit data: %e", err)
+	}
+
+	err = db.bolt.Update(func(tx *bbolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists(growUnitBucket)
+		if err != nil {
+			return fmt.Errorf("failed to open bucket: %e", err)
+		}
+
+		gu.id = id
+
+		json, err := json.Marshal(gu)
+		if err != nil {
+			return fmt.Errorf("failed to marshal: %e", err)
+		}
+
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, uint64(id))
+
+		err = bucket.Put(b, json)
+		if err != nil {
+			return fmt.Errorf("failed to override record: %e", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("failed to insert into db: %e", err)
+	}
+
+	return id, nil
+}
