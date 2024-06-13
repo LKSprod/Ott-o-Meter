@@ -2,20 +2,22 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 
-	"github.com/LKSprod/Ott-o-Meter/db"
+	"github.com/LKSprod/Ott-o-Meter/database"
 	"github.com/gorilla/mux"
 )
 
 func main() {
 	//Init Datenbank
-	db, err := db.OpenDB()
+	db, err := database.OpenDB()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -23,7 +25,82 @@ func main() {
 
 	router := mux.NewRouter()
 
-	router.HandleFunc("/", sayHello)
+	router.HandleFunc("/api/hello", sayHello)
+
+	router.Path("/api/growunits").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		units, err := db.ListGrowUnits()
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		jsonBytes, err := json.Marshal(units)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		w.Write(jsonBytes)
+	})
+
+	router.Path("/api/growunits").Methods("POST").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		decoder := json.NewDecoder(r.Body)
+		var gu database.GrowUnit
+		err := decoder.Decode(&gu)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		id, err := db.AddGrowUnit(&gu)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		jsonBytes, err := json.Marshal(id)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		w.Write(jsonBytes)
+	})
+
+	router.Path("/api/growunits/{id:[0-9]+}").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		gu, err := db.GetGrowUnit(id)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		if gu == nil {
+			w.WriteHeader(404)
+			w.Write([]byte("Not Found"))
+		}
+
+		jsonBytes, err := json.Marshal(gu)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		w.Write(jsonBytes)
+	})
 
 	port := 8080
 
@@ -60,8 +137,4 @@ func main() {
 
 func sayHello(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hello World!\n"))
-}
-
-func printPlants(w http.ResponseWriter) {
-
 }

@@ -1,4 +1,4 @@
-package db
+package database
 
 import (
 	"encoding/binary"
@@ -16,36 +16,36 @@ const (
 	GrowMediumCocos GrowMedium = "cocos"
 )
 
-var growUnitBucket = []byte("growunits")
+var growUnitBucketName = []byte("growunits")
 
 type GrowUnit struct {
-	id                        uint64
-	width                     uint
-	height                    uint
-	depth                     uint
-	carbonFilter              bool
-	activeIntake              bool
-	outtakeFanThroughputInM3H uint
-	wattageLamp               uint
-	ventilation               bool
-	inside                    bool
-	growMedium                GrowMedium
+	Id                        uint64
+	Width                     uint
+	Height                    uint
+	Depth                     uint
+	CarbonFilter              bool
+	ActiveIntake              bool
+	OuttakeFanThroughputInM3H uint
+	WattageLamp               uint
+	Ventilation               bool
+	Inside                    bool
+	GrowMedium                GrowMedium
 }
 
 func (gu *GrowUnit) area() uint {
-	return gu.width * gu.depth
+	return gu.Width * gu.Depth
 }
 
 func (gu *GrowUnit) volume() uint {
-	return gu.width * gu.depth * gu.height
+	return gu.Width * gu.Depth * gu.Height
 }
 
 func (gu *GrowUnit) verify() error {
-	if gu.width <= 0 {
+	if gu.Width <= 0 {
 		return fmt.Errorf("Invalid Width")
 	}
 
-	if gu.growMedium == "" {
+	if gu.GrowMedium == "" {
 		return fmt.Errorf("unknown growth medium")
 	}
 
@@ -61,7 +61,7 @@ func (db *DB) AddGrowUnit(gu *GrowUnit) (uint64, error) {
 	var id uint64
 
 	err = db.bolt.Update(func(tx *bbolt.Tx) error {
-		bucket, err := tx.CreateBucketIfNotExists(growUnitBucket)
+		bucket, err := tx.CreateBucketIfNotExists(growUnitBucketName)
 		if err != nil {
 			return fmt.Errorf("failed to open bucket: %e", err)
 		}
@@ -71,19 +71,24 @@ func (db *DB) AddGrowUnit(gu *GrowUnit) (uint64, error) {
 			return fmt.Errorf("failed to generate id: %e", err)
 		}
 
-		gu.id = newId
+		// set id in given GrowUnit
+		gu.Id = newId
 
+		// set output value for id
+		id = newId
+
+		// encode struct to json, so it can be save in the database
 		json, err := json.Marshal(gu)
 		if err != nil {
 			return fmt.Errorf("failed to marshal: %e", err)
 		}
 
-		id = newId
+		// encode id to bytes, so it can be used as a key
+		idAsBytes := make([]byte, 8)
+		binary.LittleEndian.PutUint64(idAsBytes, uint64(id))
 
-		b := make([]byte, 8)
-		binary.LittleEndian.PutUint64(b, uint64(id))
-
-		err = bucket.Put(b, json)
+		//error catching
+		err = bucket.Put(idAsBytes, json)
 		if err != nil {
 			return fmt.Errorf("failed to insert record: %e", err)
 		}
@@ -102,8 +107,8 @@ func (db *DB) ListGrowUnits() ([]*GrowUnit, error) {
 	units := make([]*GrowUnit, 0)
 
 	err := db.bolt.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket(growUnitBucket)
-		if bucket != nil {
+		bucket := tx.Bucket(growUnitBucketName)
+		if bucket == nil {
 			return nil
 		}
 
@@ -130,11 +135,42 @@ func (db *DB) ListGrowUnits() ([]*GrowUnit, error) {
 }
 
 // ToDo GetGrowUnit ???
-func (id int) GetGrowUnit() (gu *GrowUnit, err error) {
-	if id > len(growUnitBucket) {
-		return nil, fmt.Errorf("Grow Unit not in list: %e", err)
+func (db *DB) GetGrowUnit(id uint64) (*GrowUnit, error) {
+	var gu *GrowUnit = nil
+
+	// encode id to bytes, so it can be used as a key
+	idAsBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(idAsBytes, uint64(id))
+
+	// open read transaction to access data in database
+	err := db.bolt.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket(growUnitBucketName)
+		if bucket == nil {
+			return nil
+		}
+
+		// load json from database
+		jsonBytes := bucket.Get(idAsBytes)
+		if jsonBytes == nil {
+			return fmt.Errorf("could not find growunit with id %v", id)
+		}
+
+		gu = &GrowUnit{}
+
+		// decode json into struct
+		err := json.Unmarshal(jsonBytes, gu)
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal json from database")
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to load growunit from db: %e", err)
 	}
-	return &growUnitBucket[id], err
+
+	return gu, nil
 }
 
 // ToDo UpdateGrowUnit
@@ -145,12 +181,12 @@ func (db *DB) UpdateGrowUnit(gu *GrowUnit, id uint64) (uint64, error) {
 	}
 
 	err = db.bolt.Update(func(tx *bbolt.Tx) error {
-		bucket, err := tx.CreateBucketIfNotExists(growUnitBucket)
+		bucket, err := tx.CreateBucketIfNotExists(growUnitBucketName)
 		if err != nil {
 			return fmt.Errorf("failed to open bucket: %e", err)
 		}
 
-		gu.id = id
+		gu.Id = id
 
 		json, err := json.Marshal(gu)
 		if err != nil {
